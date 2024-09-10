@@ -179,7 +179,6 @@ class ThrusterControl:
             carb.log_warn("Did not receive enough inputs for all the rotors")
             return
 
-        print(f"Servos_original[{servos[0]}, {servos[1]}, {servos[2]}, {servos[3]}]")
             
         # Update the desired reference for every rotor (and saturate according to the min and max values)
         for i in range(self.num_rotors):
@@ -199,7 +198,6 @@ class ThrusterControl:
             self._input_reference[i] = ((raw_cmd + offset) * multiplier) + self.zero_position_armed[i]
 
 
-        print(f"Servos[{self._input_reference[0]}, {self._input_reference[1]}, {self._input_reference[2]}, {self._input_reference[3]}]")
 
     def zero_input_reference(self):
         """
@@ -717,9 +715,8 @@ class ArduPilotMavlinkBackend(Backend):
                     is_armed = self._connection.motors_armed()
                     if is_armed:
                         self._armed = True
-                        carb.log_warn(">>>>>>>> Drone is armed.")
+                        carb.log_warn("Drone is armed.")
                     else:
-                        # DEBUG
                         if self._armed == True:
                             print("Disarmed!!!!!!!!!!!!")    
                         self._armed = False
@@ -932,7 +929,6 @@ class ArduPilotMavlinkBackend(Backend):
 
             # If the vehicle is not armed, do not rotate the propellers
         else:
-            # print("Control message has NOT been recieved")
             self._rotor_data.zero_input_reference()
 
     def update_graphical_sensor(self, sensor_type: str, data):
