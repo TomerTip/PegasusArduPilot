@@ -15,7 +15,7 @@ import carb
 import omni.ui as ui
 
 # Extension Configurations
-from pegasus.simulator.params import ROBOTS, SIMULATION_ENVIRONMENTS, BACKENDS
+from pegasus.simulator.params import ROBOTS, SIMULATION_ENVIRONMENTS, BACKENDS, WORLD_SETTINGS
 from pegasus.simulator.logic.interface.pegasus_interface import PegasusInterface
 
 # Vehicle Manager to spawn Vehicles
@@ -151,8 +151,9 @@ class UIDelegate:
 
             # Get the name of the selected world
             selected_world = self._scene_names[environemnt_index]
-
+            
             # Try to spawn the selected world
+            self._pegasus_sim.set_world_settings(**WORLD_SETTINGS[self._streaming_backend])
             asyncio.ensure_future(self._pegasus_sim.load_environment_async(SIMULATION_ENVIRONMENTS[selected_world], force_clear=True))
 
     def on_set_new_global_coordinates(self):
@@ -197,7 +198,6 @@ class UIDelegate:
         """
 
         async def async_load_vehicle():
-
             # Check if we already have a physics environment activated. If not, then activate it
             # and only after spawn the vehicle. This is to avoid trying to spawn a vehicle without a physics
             # environment setup. This way we can even spawn a vehicle in an empty world and it won't care
@@ -240,6 +240,7 @@ class UIDelegate:
                     })
                     backend = PX4MavlinkBackend(config=backend_config)
                     carb.log_warn("PX4 backend selected.")
+
                 
                 elif self._streaming_backend == BACKENDS["ardupilot"]:
                     # # Read if we should auto-start ardupilot from the checkbox

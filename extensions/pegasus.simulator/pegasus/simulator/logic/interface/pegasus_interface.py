@@ -254,7 +254,7 @@ class PegasusInterface:
         asyncio.ensure_future(self._world.initialize_simulation_context_async())
         carb.log_info("Current scene and its vehicles has been deleted")
 
-    async def load_environment_async(self, usd_path: str, force_clear: bool=False):
+    async def load_environment_async(self, usd_path: str, backend: str = 'px4', force_clear: bool=False):
         """Method that loads a given world (specified in the usd_path) into the simulator asynchronously.
 
         Args:
@@ -347,12 +347,11 @@ class PegasusInterface:
         # Set the camera view to a fixed value
         set_camera_view(eye=camera_position, target=camera_target)
 
-    def set_world_settings(self, physics_dt=None, stage_units_in_meters=None, rendering_dt=None):
+    def set_world_settings(self, physics_dt=None, stage_units_in_meters=None, rendering_dt=None, device=None):
         """
         Set the current world settings to the pre-defined settings. TODO - finish the implementation of this method.
         For now these new setting will never override the default ones.
         """
-
         # Set the physics engine update rate
         if physics_dt is not None:
             self._world_settings["physics_dt"] = physics_dt
@@ -364,6 +363,9 @@ class PegasusInterface:
         # Set the render engine update rate (might not be the same as the physics engine)
         if rendering_dt is not None:
             self._world_settings["rendering_dt"] = rendering_dt
+
+        if device is not None:
+            self._world_settings["device"] = device
 
     def _get_px4_path_from_config(self):
         """

@@ -613,9 +613,6 @@ class ArduPilotMavlinkBackend(Backend):
         if an hearbeat is received via mavlink. When this first heartbeat is received poll for mavlink messages
         """
 
-        # import pdb;pdb.set_trace()
-        # self.send_heartbeat()
-
         carb.log_warn("Waiting for first hearbeat")
         result = self._connection.wait_heartbeat(blocking=False)
 
@@ -631,37 +628,14 @@ class ArduPilotMavlinkBackend(Backend):
             dt (float): The time elapsed between the previous and current function calls (s).
         """
 
-        # Check for the first hearbeat on the first few iterations
-        # if not self._received_first_hearbeat:
-        #     self.wait_for_first_hearbeat()
-        #     return
-
-        # # Check if we have already received IMU data. If not, start the lockstep and wait for more data
-        # if self._sensor_data.received_first_imu:
-        #     while not self._sensor_data.new_imu_data and self._is_running:
-        #         # Just go for the next update and then try to check if we have new simulated sensor data
-        #         # DO not continue and get mavlink thrusters commands until we have simulated IMU data available
-        #         return
-
-        # self._current_utime = timestamp() - self.sim_time
-        # us = 1000  # 1000 microseconds
         self._current_utime += dt
 
-
-        # self._current_utime += dt
-        # self._current_utime += 0.1
-
         carb.log_info("Pre Update")
-        # self.ap.pre_update(sim_time=s
-        # elf._current_utime)
+
         _, servos =self.ap.pre_update(
             sim_time=self._current_utime
         )
-        
-        
-        # time.sleep(0.01)
-        # time.sleep(dt) # 0.1
-        
+
         carb.log_info("Checking is Armed")
         self.update_is_armed()
         carb.log_info("Update Motor Commands")  
@@ -672,37 +646,6 @@ class ArduPilotMavlinkBackend(Backend):
             sim_time=self._current_utime,
             sensor_data=self._sensor_data
         )
-        
-        # us = 1000  # 1000 microseconds
-        # time.sleep(microseconds_to_seconds(us))
-
-        # self.ap.post_update(sim_time=self._current_utime, sensor_data=self.ap.SensorData())
-        # self.ap.post_update(sensor_data=self.ap.SensorData(), sim_time=self.test_time)
-
-        # # Check if we have received any mavlink messages
-        # self.poll_mavlink_messages()
-
-        # # import pdb;pdb.set_trace()
-        # # Send hearbeats at 1Hz
-        # if (time.time() - self._last_heartbeat_sent_time) > 1.0 or self._received_first_hearbeat == False:
-        #     # import pdb;pdb.set_trace()
-        #     self.send_heartbeat()
-        #     self._last_heartbeat_sent_time = time.time()
-
-        # Update the current u_time for ArduPilot
-        # self._current_utime += int(dt * 1000000)
-        # self._current_utime += 0.01 
-        # self.test_time += 0.01
-        # import pdb;pdb.set_trace()
-        # self._current_utime += dt * 10
-
-        """
-        # Send sensor messages
-        self.send_sensor_msgs(self._current_utime)
-
-        # Send the GPS messages
-        self.send_gps_msgs(self._current_utime)
-        """
 
     def update_is_armed(self):
         # Use this loop to emulate a do-while loop (make sure this runs at least once)
@@ -718,23 +661,11 @@ class ArduPilotMavlinkBackend(Backend):
                         carb.log_warn("Drone is armed.")
                     else:
                         if self._armed == True:
-                            print("Disarmed!!!!!!!!!!!!")    
+                            carb.log_warn("Drone is Disarmed.")
                         self._armed = False
 
 
     def update_motor_commands(self, servos):
-        """
-        if self._armed:
-            msg = self._connection.recv_match(blocking=False)
-            if msg is not None:
-                if msg.id == mavutil.mavlink.MAVLINK_MSG_ID_SERVO_OUTPUT_RAW:
-                    servos = [msg.servo1_raw, msg.servo2_raw, msg.servo3_raw, msg.servo4_raw]
-                    
-                    self._rotor_data.update_input_reference(servos)
-        else:
-            self._rotor_data.zero_input_reference()
-        """
-
         if self._armed and servos != ():
             self._rotor_data.update_input_reference(servos)
         else:
@@ -908,28 +839,6 @@ class ArduPilotMavlinkBackend(Backend):
             )
         except:
             carb.log_warn("Could not send groundtruth through mavlink")
-
-    def handle_control(self, servos, is_armed):
-        """
-        Method that when received a control message, compute the forces simulated force that should be applied
-        on each rotor of the vehicle
-
-        Args:
-            time_usec (int): The total time elapsed since the simulation started - Ignored argument
-            controls (list): A list of ints which contains the thrust_control received via mavlink
-            flags: Ignored argument
-        """
-
-        # Check if the vehicle is armed - Note: here we have to add a +1 since the code for armed is 128, but
-        # pymavlink is return 129 (the end of the buffer) 
-        # if mode == mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED + 1:
-        if is_armed:
-            # Set the rotor target speeds
-            self._rotor_data.update_input_reference(servos)
-
-            # If the vehicle is not armed, do not rotate the propellers
-        else:
-            self._rotor_data.zero_input_reference()
 
     def update_graphical_sensor(self, sensor_type: str, data):
         """Method that when implemented, should handle the receival of graphical sensor data
