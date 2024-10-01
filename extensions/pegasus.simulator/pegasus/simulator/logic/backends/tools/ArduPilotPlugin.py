@@ -1,15 +1,19 @@
-import time
 import socket
 import struct
+import threading
+import time
 import json
-from dataclasses import dataclass
 import numpy as np
+from dataclasses import dataclass
+from typing import List
+from pprint import pprint
 
 class ArduPilotPlugin:
     SERVO_PACKET_SIZE = 40
     SERVO_PACKET_MAGIC = 0x481A
+    AP_COMM_FREQUENCY = 1/1000 # hz109
     
-    def __init__(self):
+    def __init__(self, sensor_rate: float):
 
         # The address for the flight dynamics model (i.e. this plugin)
         self.fdm_address = '127.0.0.1'
@@ -35,20 +39,57 @@ class ArduPilotPlugin:
         # Number of consecutive missed ArduPilot controller messages
         self.connectionTimeoutCount = 0
         #  Max number of consecutive missed ArduPilot controller messages before timeout
-        self.connectionTimeoutMaxCount = 5  # Example value
+        self.connectionTimeoutMaxCount = 10
         
         # Set true to enforce lock-step simulation
         self.isLockStep = False
-       
-        # Last sent JSON string, so we can resend if needed.
-        self.json_str: str = ""
-        
+               
         # Keep track of controller update sim-time.
         self.last_controller_update_time = 0
         # Keep track of the time the last servo packet was received.
         self.last_servo_packet_recv_time = 0
         
         # Sockets
+        self.motor_control_sock = None
+        
+        # PWM packet buffer
+        self.pwms = [0] * 16
+        # Sensor Data from simulator
+        self.sensor_data = {
+            "sim_position": [0, 0, 0],
+            "sim_attitude": [1, 0, 0, 0],
+            "sim_velocity_inertial": [0, 0, 0],
+            "xgyro": 0,
+            "ygyro": 0,
+            "zgyro": 0,
+            "xacc": 0,
+            "yacc": 0,
+            "zacc": 0
+        }
+
+        # Last sent JSON string, so we can resend if needed.
+        self.json_str: str = ""
+
+        # Simulation time
+        self.sim_time_start = time.time()
+        
+        # Creates a new thread that runs the run_plugin method when started
+        self.plugin_thread = threading.Thread(target=self.run_plugin, args=())
+
+        self.ap_thread_running = False
+
+        self.sensor_rate = sensor_rate
+        self.comm_rate = self.AP_COMM_FREQUENCY
+        self.steps = round(self.sensor_rate / self.comm_rate)
+        self.step = 0
+
+        # Placeholder for previous and current sensor data dictionary
+        self.prev_sensor_data = None
+        self.curr_sensor_data = None
+        self.time_since_last_update = 0.0
+
+    
+    def init_sockets(self):
         self.motor_control_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.motor_control_sock.setblocking(True)
         self.motor_control_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -60,49 +101,49 @@ class ArduPilotPlugin:
         except socket.error as e:
             print(f"Failed to bind with {self.fdm_address}:{self.fdm_port_in}. Aborting plugin.")
 
-        
     def create_state_json(self, sensor_data, sim_time):
         state = {
             "timestamp": sim_time,
             "imu": {
                 "gyro": [
-                    sensor_data.xgyro,
-                    sensor_data.ygyro,
-                    sensor_data.zgyro
+                    sensor_data["xgyro"],
+                    sensor_data["ygyro"],
+                    sensor_data["zgyro"]
                 ],
                 "accel_body": [
-                    sensor_data.xacc,
-                    sensor_data.yacc,
-                    sensor_data.zacc,
+                    sensor_data["xacc"],
+                    sensor_data["yacc"],
+                    sensor_data["zacc"],
                 ]
             },  
             "position": [
-               sensor_data.sim_position[0], # X
-               sensor_data.sim_position[1], # Y
-               sensor_data.sim_position[2], # Z
+               sensor_data["sim_position"][0], # X
+               sensor_data["sim_position"][1], # Y
+               sensor_data["sim_position"][2], # Z
             ],
             "quaternion": [
-               sensor_data.sim_attitude[0], # W
-               sensor_data.sim_attitude[1], # X
-               sensor_data.sim_attitude[2], # Y
-               sensor_data.sim_attitude[3], # Z
+               sensor_data["sim_attitude"][0], # W
+               sensor_data["sim_attitude"][1], # X
+               sensor_data["sim_attitude"][2], # Y
+               sensor_data["sim_attitude"][3], # Z
             ],
             "velocity": [
-              sensor_data.sim_velocity_inertial[0], # X
-              sensor_data.sim_velocity_inertial[1], # Y
-              sensor_data.sim_velocity_inertial[2]  # Z
+              sensor_data["sim_velocity_inertial"][0], # X
+              sensor_data["sim_velocity_inertial"][1], # Y
+              sensor_data["sim_velocity_inertial"][2]  # Z
             ]
         }
+
+        
+        # pprint(f"\n{state}\n")
 
         json_str = json.dumps(state, separators=(',', ':'))
         json_str = "\n" + json_str + "\n"
         json_str = json_str.encode('utf-8')
 
         self.json_str = json_str
-        
         return self.json_str 
-        
-
+    
     def send_state(self):
         if self.motor_control_sock:
             bytes_sent = self.motor_control_sock.sendto(
@@ -167,7 +208,6 @@ class ArduPilotPlugin:
         # Reset the socket to blocking mode
         self.motor_control_sock.setblocking(True)
         print("Drained all packets.")
-
 
     def receive_servo_packet(self):
         # Determine wait time based on whether ArduPilot is online
@@ -237,19 +277,142 @@ class ArduPilotPlugin:
 
         return True, pkt_pwm
     
-    def pre_update(self, sim_time):
+    @property
+    def sim_time(self):
+        return time.time() - self.sim_time_start
+
+    def pre_update(self):
         # Update the control surfaces
-        recieved, pwms = self.receive_servo_packet()
+        recieved, self.pwms = self.receive_servo_packet()
         if recieved:
-            self.last_servo_packet_recv_time = sim_time
+            self.last_servo_packet_recv_time = self.sim_time
 
-        return recieved, pwms
+        return recieved, self.pwms
 
-    def post_update(self, sensor_data, sim_time):
-        if sim_time > self.last_controller_update_time and self.arduPilotOnline:
-            self.last_controller_update_time = sim_time
-            self.create_state_json(sim_time=self.last_controller_update_time, sensor_data=sensor_data)
+    
+    def get_servos(self):
+        return self.pwms
+
+    def update_sensor_data(self, 
+                        sim_position: List[float], 
+                        sim_attitude: List[float], 
+                        sim_velocity_inertial: List[float], 
+                        xgyro: float,
+                        ygyro: float, 
+                        zgyro: float, 
+                        xacc: float,
+                        yacc: float, 
+                        zacc: float):
+        sensor_data = {
+            "sim_position": sim_position,
+            "sim_attitude": sim_attitude,
+            "sim_velocity_inertial": sim_velocity_inertial,
+            "xgyro": xgyro,
+            "ygyro": ygyro,
+            "zgyro": zgyro,
+            "xacc": xacc,
+            "yacc": yacc,
+            "zacc": zacc
+        }
+        self.prev_sensor_data = self.curr_sensor_data
+        self.curr_sensor_data = sensor_data
+        self.last_controller_update_time = self.sim_time
+        self.time_since_last_update = 0.0  # Reset time since last update when new data arrives
+
+    def send_state_interpolated(self, sensor_rate: float = 1/60, comm_rate: float = 1/800):
+        steps = round(sensor_rate / comm_rate)
+        for step in range(steps):
+            intepolated_sensor_data = self.interpolate_sensor_data(step)
+            # timestamp_step = self.last_controller_update_time + (comm_rate * step)
+            # self.create_state_json(sim_time=self.sim_time, sensor_data=intepolated_sensor_data)
+            self.create_state_json(sim_time=self.sim_time, sensor_data=self.curr_sensor_data)
             self.send_state()
+
+
+    def post_update(self):
+        if self.sim_time > self.last_controller_update_time and self.arduPilotOnline:
+            self.create_state_json(sim_time=self.last_controller_update_time, sensor_data=self.curr_sensor_data)
+            self.send_state()
+
+
+    def interpolate_sensor_data(self, step):
+        """
+        Interpolates the sensor data based on the step size, which is the ratio of sensor_rate to comm_rate.
+
+        Args:
+            step (float): The step size for interpolation, calculated as sensor_rate/comm_rate.
+
+        Returns:
+            dict: The interpolated sensor data.
+        """
+        # Calculate interpolation factor based on the step size
+        steps = self.sensor_rate / self.comm_rate
+        alpha = step / steps # normalize
+
+        # Initialize dictionary for storing interpolated data
+        interpolated_data = self.curr_sensor_data
+
+        if bool(self.curr_sensor_data) and bool(self.prev_sensor_data):
+            for key in self.curr_sensor_data.keys():
+                # Get previous and current values for the key
+                prev_value = self.prev_sensor_data[key]
+                curr_value = self.curr_sensor_data[key]
+
+                # Check if values are lists or numpy arrays and handle accordingly
+                if isinstance(prev_value, (list, np.ndarray)) and isinstance(curr_value, (list, np.ndarray)):
+                    # Perform linear interpolation for each element
+                    interpolated_value = [(1 - alpha) * prev + alpha * curr for prev, curr in zip(prev_value, curr_value)]
+                else:
+                    # Perform linear interpolation for scalar values
+                    interpolated_value = (1 - alpha) * prev_value + alpha * curr_value
+
+                # Store the interpolated value
+                interpolated_data[key] = interpolated_value
+
+        return interpolated_data
+    
+
+    def run_plugin(self, interpolated=True):
+        self.init_sockets()
+        self.drain_unread_packets()
+
+        self.ap_thread_running = True
+        
+        messages = 0
+        start_dt = self.sim_time
+        while self.ap_thread_running:
+            self.pre_update()
+            
+            if interpolated:
+                if self.step < self.steps:
+                    self.step += 1
+                else:
+                    self.step = 0 
+                
+                print(f"self.step:{self.step}")
+                self.curr_sensor_data = self.interpolate_sensor_data(self.step)
+                pprint(f"{self.curr_sensor_data}")
+            
+            self.post_update()
+
+            time.sleep(self.comm_rate)
+            
+            messages += 1
+            dt = self.sim_time - start_dt
+            # print(f"self.sim_time: {self.sim_time}, start_dt:{start_dt}, dt:{dt}")
+            if dt >= 1.0:
+                print(f"send {messages} in {dt} seconds")
+                start_dt = self.sim_time
+                messages = 0
+            
+    def start(self):
+        print("Ardupilot Plugin Started")
+        self.plugin_thread.start()
+
+    def stop(self):
+        print("Ardupilot Plugin Stopped")
+        self.ap_thread_running = False
+        self.plugin_thread.join()
 
     # Mock Sensor Data
     @dataclass
@@ -270,29 +433,14 @@ class ArduPilotPlugin:
             5.46182226507895e-12 + np.random.normal(0, 0.01),
             5.454422342398644e-18 + np.random.normal(0, 0.01)
         ]
-        xgyro: float = 4.4028248386528135e-12
-        ygyro: float = 5.46182226507895e-12
-        zgyro: float = 5.454422342398644e-18
-        xacc: float = -1.521417774123255e-9
-        yacc: float = 1.976595291657851e-9
-        zacc: float = -9.80000000000001
-
-
+        
 if __name__ == '__main__':
     ap = ArduPilotPlugin()
+    ap.init_sockets()
     ap.drain_unread_packets()
 
-    while True:
+    ap.ap_thread_running = True
+    while ap.ap_thread_running:
         ap.pre_update()
-        ap.post_update(sensor_data=ap.SensorData())
-        time.sleep(0.01)
-
-        
-
-
-
-
-
-
-
-
+        ap.post_update()
+        time.sleep(ap.comm_rate)

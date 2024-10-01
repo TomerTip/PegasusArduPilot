@@ -19,6 +19,7 @@ from pegasus.simulator.logic.interface.pegasus_interface import PegasusInterface
 from pegasus.simulator.logic.backends.tools.ardupilot_launch_tool import ArduPilotLaunchTool
 from pegasus.simulator.logic.backends.tools.ArduPilotPlugin import ArduPilotPlugin
 
+from pegasus.simulator.params import WORLD_SETTINGS
 
 class SensorSource:
     """ The binary codes to signal which simulated data is being sent through mavlink
@@ -198,7 +199,6 @@ class ThrusterControl:
             self._input_reference[i] = ((raw_cmd + offset) * multiplier) + self.zero_position_armed[i]
 
 
-
     def zero_input_reference(self):
         """
         When this method is called, the input_reference is updated such that every rotor is stopped
@@ -264,15 +264,6 @@ class ArduPilotMavlinkBackendConfig:
         # and infer directly from the function calls)
         self.update_rate: float = config.get("update_rate", 400)  # [Hz]
 
-def micros():
-    return int(time.time() * 1_000_000)  # Get current time in microseconds
-
-def timestamp():
-    return micros() / 1_000_000.0  # Convert microseconds to seconds
-
-def microseconds_to_seconds(microseconds):
-    return microseconds / 1_000_000.0
-        
 class ArduPilotMavlinkBackend(Backend):
     """ The Mavlink Backend used to receive the vehicle's state and sensor data in order to send to ArduPilot through mavlink. It also
     receives via mavlink the thruster commands to apply to each vehicle rotor.
@@ -291,7 +282,6 @@ class ArduPilotMavlinkBackend(Backend):
         # Setup the desired mavlink connection port
         # The connection will only be created once the simulation starts
         self._vehicle_id = config.vehicle_id
-        self._connection = None
         self._connection_port = f"{config.connection_type}:{config.connection_ip}:{config.connection_baseport}"
         # TODO: config.vehicle_id)
 
@@ -337,13 +327,12 @@ class ArduPilotMavlinkBackend(Backend):
         self._last_heartbeat_sent_time = 0
 
         # Auxiliar variables for setting the u_time when sending sensor data to ArduPilot
-        self.sim_time = timestamp()
         self._current_utime: int = 0
 
-        self.test_time = 0
+        # Mavlink connection
+        self._connection = None
 
-        self.ap = ArduPilotPlugin()
-        self.ap.drain_unread_packets()
+        self.ap = ArduPilotPlugin(sensor_rate=WORLD_SETTINGS["ardupilot"]["physics_dt"])
 
     def update_sensor(self, sensor_type: str, data):
         """Method that is used as callback for the vehicle for every iteration that a sensor produces new data. 
@@ -529,13 +518,9 @@ class ArduPilotMavlinkBackend(Backend):
         """Gets called when the ArduPilotMavlinkBackend object gets destroyed. When this happens, we make sure
         to close any mavlink connection open for this vehicle.
         """
-
-        # When this object gets destroyed, close the mavlink connection to free the communication port
-        try:
-            self._connection.close()
-            self._connection = None
-        except:
-            carb.log_info("Mavlink connection was not closed, because it was never opened")
+        
+        self._connection.close()
+        self._connection = None
 
     def start(self):
         """Method that handles the begining of the simulation of vehicle. It will try to open the mavlink connection 
@@ -559,6 +544,8 @@ class ArduPilotMavlinkBackend(Backend):
             self.ardupilot_tool = ArduPilotLaunchTool(self.ardupilot_dir, self._vehicle_id, self.ardupilot_vehicle_model)
             self.ardupilot_tool.launch_ardupilot()
 
+        self.ap.start()
+
     def stop(self):
         """Method that when called will handle the stopping of the simulation of vehicle. It will make sure that any open
         mavlink connection will be closed and also that the ArduPilot background process gets killed (if it was auto-initialized)
@@ -571,15 +558,13 @@ class ArduPilotMavlinkBackend(Backend):
         # Set the flag so that we are no longer running the mavlink interface
         self._is_running = False
 
-        # Close the mavlink connection
-        self._connection.close()
-        self._connection = None
-
         # Close the ArduPilot if it was running
         if self.ardupilot_autolaunch and self.ardupilot_autolaunch is not None:
             carb.log_info("Attempting to kill ArduPilot background process")
             self.ardupilot_tool.kill_ardupilot()
             self.ardupilot_tool = None
+        
+        self.ap.stop()
 
     def reset(self):
         """For now does nothing. Here for compatibility purposes only
@@ -630,22 +615,26 @@ class ArduPilotMavlinkBackend(Backend):
 
         self._current_utime += dt
 
-        carb.log_info("Pre Update")
-
-        _, servos =self.ap.pre_update(
-            sim_time=self._current_utime
-        )
-
         carb.log_info("Checking is Armed")
         self.update_is_armed()
-        carb.log_info("Update Motor Commands")  
+
+        carb.log_info("Update Motor Commands")
+        servos = self.ap.get_servos()
         self.update_motor_commands(servos)
     
-        carb.log_info("Post Update")
-        self.ap.post_update(
-            sim_time=self._current_utime,
-            sensor_data=self._sensor_data
+        carb.log_info("Update sensor data")
+        self.ap.update_sensor_data(
+            sim_position=self._sensor_data.sim_position,
+            sim_attitude=self._sensor_data.sim_attitude,
+            sim_velocity_inertial=self._sensor_data.sim_velocity_inertial,
+            xgyro=self._sensor_data.xgyro,
+            ygyro=self._sensor_data.ygyro,
+            zgyro=self._sensor_data.zgyro,
+            xacc=self._sensor_data.xacc,
+            yacc=self._sensor_data.yacc,
+            zacc=self._sensor_data.zacc
         )
+        
 
     def update_is_armed(self):
         # Use this loop to emulate a do-while loop (make sure this runs at least once)
@@ -663,7 +652,6 @@ class ArduPilotMavlinkBackend(Backend):
                         if self._armed == True:
                             carb.log_warn("Drone is Disarmed.")
                         self._armed = False
-
 
     def update_motor_commands(self, servos):
         if self._armed and servos != ():
