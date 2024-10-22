@@ -92,15 +92,14 @@ class WidgetWindow(ui.Window):
 
                 # Vertical Stack of menus
                 with ui.VStack():
+                    # Create a frame for selecting which backend to load
+                    self._backend_selection_frame()
+                    ui.Spacer(height=5)
 
                     # Create a frame for selecting which scene to load
                     self._scene_selection_frame()
                     ui.Spacer(height=5)
                     
-                     # Create a frame for selecting which backend to load
-                    self._backend_selection_frame()
-                    ui.Spacer(height=5)
-
                     # Create a frame for selecting which vehicle to load in the simulation environment
                     self._robot_selection_frame()
                     ui.Spacer(height=5)

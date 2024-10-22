@@ -37,6 +37,27 @@ PX4 Simulation supports sensor injection over MAVLink, while ArduPilot does not.
 - [ArduPilot Building Setup](https://ardupilot.org/dev/docs/building-setup-linux.html#building-setup-linux)
 - [ArduPilot SITL Setup](https://ardupilot.org/dev/docs/setting-up-sitl-on-linux.html#setting-up-sitl-on-linux)
 - [Using SITL for ArduPilot Testing](https://ardupilot.org/dev/docs/using-sitl-for-ardupilot-testing.html#using-sitl-for-ardupilot-testing)
+- Sensor frequency: [](https://discuss.ardupilot.org/t/sitl-with-custom-fdm/22956/8) [](https://discuss.ardupilot.org/t/sitl-protocol-for-custom-simulators/60365/2)
+```
+mkral
+Martin
+May 2018
+Hi @peteretep, @Akmal_Bakar
+
+I´m sorry but unfortunately I still haven´t found any time to make the demo.
+
+Update frequency what I use is 300 Hz for updating virtual sensor data (but probably should be 500 - 1000 Hz) and 50 Hz for updating servo data (again should be probably more, but it slows down the simulation if you don´t have powerful computer).
+```
+```
+halcyon
+Brent Pickering
+Aug 2020
+The JSON interface looks like exactly what I was looking for. There’s a line in the readme.md that brings up one additional question:
+“The SIM_RATE_HZ should value be kept above the vehicle loop rate, by default this 400hz on copter and quadplanes and 50 hz on plane and rover.”
+
+Does that mean those are minimum recommended update rates for copters and fixed wing respectively?
+```
+
 
 ```bash
 # Install SITL dependencies
