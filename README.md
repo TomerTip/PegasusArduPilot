@@ -8,7 +8,7 @@
 **PegasusArduPilot** is a fork of the [PegasusSimulator](https://github.com/PegasusSimulator/PegasusSimulator) project, built on top of [NVIDIA
 Omniverse](https://docs.omniverse.nvidia.com/) and [IsaacSim](https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/overview.html).
 
-This project bridges between the ArduPilot project and community and IsaacSim, allowing the ArduPilot community to leverage IsaacSim's physics simulation and photorealistic rendering capabilities.
+This project bridges between the ArduPilot project and IsaacSim, allowing the ArduPilot community to leverage IsaacSim's physics simulation and photorealistic rendering capabilities!
 
 > **Notice:** A pull request of the features included in this fork was submitted into the [PegasusSimulator](https://github.com/PegasusSimulator/PegasusSimulator), and hopefully intended to be merged into the main project.
 
@@ -21,6 +21,14 @@ This project bridges between the ArduPilot project and community and IsaacSim, a
 
   ![ArduPilot drone takeoff](docs/_static/ardupilot/drone_takeoff.gif)
 </p>
+
+## Setup
+1. Follow PegasusSimulator installation steps: https://pegasussimulator.github.io/PegasusSimulator/source/setup/installation.html
+2. Follow ArduPilot SITL installation steps:
+  - https://ardupilot.org/dev/docs/building-setup-linux.html#building-setup-linux
+  - https://ardupilot.org/dev/docs/setting-up-sitl-on-linux.html#setting-up-sitl-on-linux
+  
+  You may install ArduPilot at `~/ardupilot`, or change the path in the UI inside Pegasus backend selection menu.
 
 ## [PyArduPilotPlugin](https://github.com/TomerTip/PyArduPilotPlugin)
 To get PegasusSimulator and ArduPilot SITL talking, I created a Python implementation of the custom protocol used between ArduPilot SITL and the simulator - called [PyArduPilotPlugin](https://github.com/TomerTip/PyArduPilotPlugin).
