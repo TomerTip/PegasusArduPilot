@@ -3,11 +3,11 @@ import socket
 import struct
 import json
 from dataclasses import dataclass
-import numpy as np
+import random
 
 class ArduPilotPlugin:
     SERVO_PACKET_SIZE = 40
-    SERVO_PACKET_MAGIC = 0x481A
+    SERVO_PACKET_MAGIC = 18458
     
     def __init__(self):
 
@@ -255,20 +255,20 @@ class ArduPilotPlugin:
     @dataclass
     class SensorData:
         sim_position = [
-            -6.874587183616472e-12 + np.random.normal(0, 0.01),
-            -1.6699334495870352e-12 + np.random.normal(0, 0.01),
-            -0.1949994162458527 + np.random.normal(0, 0.01)
+            -6.874587183616472e-12 + random.gauss(0, 0.01),
+            -1.6699334495870352e-12 + random.gauss(0, 0.01),
+            -0.1949994162458527 + random.gauss(0, 0.01)
         ]
         sim_attitude = [
             1,
-            -4.281847537232883e-12 + np.random.normal(0, 0.001),
-            1.7627199589076353e-11 + np.random.normal(0, 0.001),
-            -4.281847537232883e-12 + np.random.normal(0, 0.001)
+            -4.281847537232883e-12 + random.gauss(0, 0.001),
+            1.7627199589076353e-11 + random.gauss(0, 0.001),
+            -4.281847537232883e-12 + random.gauss(0, 0.001)
         ]
         sim_velocity_inertial = [
-            4.4028248386528135e-12 + np.random.normal(0, 0.01),
-            5.46182226507895e-12 + np.random.normal(0, 0.01),
-            5.454422342398644e-18 + np.random.normal(0, 0.01)
+            4.4028248386528135e-12 + random.gauss(0, 0.01),
+            5.46182226507895e-12 + random.gauss(0, 0.01),
+            5.454422342398644e-18 + random.gauss(0, 0.01)
         ]
         xgyro: float = 4.4028248386528135e-12
         ygyro: float = 5.46182226507895e-12
@@ -286,13 +286,4 @@ if __name__ == '__main__':
         ap.pre_update()
         ap.post_update(sensor_data=ap.SensorData())
         time.sleep(0.01)
-
-        
-
-
-
-
-
-
-
 

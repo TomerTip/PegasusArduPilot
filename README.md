@@ -20,6 +20,8 @@ This project bridges between the ArduPilot project and IsaacSim, allowing the Ar
   ![ArduPilot drone spawn](docs/_static/ardupilot/ardupilot_spawn.gif)
 
   ![ArduPilot drone takeoff](docs/_static/ardupilot/drone_takeoff.gif)
+  
+  ![ArduPilot Camera Demo](docs/_static/ardupilot/ardupilot_camera.gif)
 </p>
 
 ## Setup
@@ -33,6 +35,14 @@ This project bridges between the ArduPilot project and IsaacSim, allowing the Ar
 ## [PyArduPilotPlugin](https://github.com/TomerTip/PyArduPilotPlugin)
 To get PegasusSimulator and ArduPilot SITL talking, I created a Python implementation of the custom protocol used between ArduPilot SITL and the simulator - called [PyArduPilotPlugin](https://github.com/TomerTip/PyArduPilotPlugin).
 This project allows developers to create a custom simulator and integrate it with ArduPilot SITL control using Python!
+
+## Changes to main Project
+Since the code of PegasusSimulator is currently tightly coupled with `PX4`, I had to change the backend class hierarchy to become more generic and extendable. 
+<p align = "center">
+  <img src="docs/_static/ardupilot/pegasus_backends.png" alt="Pegasus Backends">
+</p>
+
+
 
 ## Citation
 
