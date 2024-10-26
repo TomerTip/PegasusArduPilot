@@ -6,8 +6,8 @@ ArduPilot
 .. image:: https://img.shields.io/badge/IsaacSim-4.1.0-brightgreen.svg
    :alt: IsaacSim 4.1.0
 
-.. image:: https://img.shields.io/badge/ArduPilot-4.3.3-brightgreen.svg
-   :alt: ArduPilot 4.3.3
+.. image:: https://img.shields.io/badge/ArduPilot-Copter-4.4.0-brightgreen.svg
+   :alt: ArduPilot-Copter 4.4
 
 .. image:: https://img.shields.io/badge/Ubuntu-22.04LTS-brightgreen.svg
    :alt: Ubuntu 22.04
